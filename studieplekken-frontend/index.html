@@ -4,7 +4,119 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/lux/bootstrap.min.css" />
     <title>studieplekken-frontend</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        background-color: #0d0d12 !important;
+        color: #e8e8f0 !important;
+        font-family: 'Nunito Sans', sans-serif;
+      }
+
+      .font-mono {
+        font-family: 'DM Mono', monospace;
+      }
+
+      .uppercase-track {
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      .study-table {
+        border-radius: 0.25rem;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+
+      .study-table thead th {
+        background-color: #0f1016;
+        color: #f0f0f5;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+
+      .study-table tbody tr {
+        background-color: #0f0f14;
+        color: #e8e8f0;
+        transition: background-color 0.2s ease;
+      }
+
+      .study-table tbody tr:nth-child(even) {
+        background-color: #12121a;
+      }
+
+      .study-table tbody tr:hover {
+        background-color: rgba(255,255,255,0.03);
+      }
+
+      .study-table tbody tr.is-selected {
+        background-color: rgba(200,169,110,0.08);
+        border-left: 2px solid #c8a96e;
+      }
+
+      .study-table td,
+      .study-table th {
+        padding: 0.875rem 1rem;
+        vertical-align: middle;
+      }
+
+      .reservation-input {
+        background-color: #1e1e2a;
+        color: #e8e8f0;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 0.25rem;
+      }
+
+      .reservation-input::placeholder {
+        color: #8d8da3;
+      }
+
+      .reservation-input:focus {
+        background-color: #232333 !important;
+        color: #ffffff !important;
+        border-color: rgba(200,169,110,0.5) !important;
+        box-shadow: 0 0 0 0.2rem rgba(200,169,110,0.2) !important;
+      }
+
+      .reservation-submit {
+        background-color: #f0f0f5 !important;
+        color: #0d0d12 !important;
+        border: 0;
+        border-radius: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-weight: 700;
+        transition: all 0.2s ease;
+      }
+
+      .reservation-submit:hover {
+        background-color: #c8a96e !important;
+        color: #111111 !important;
+      }
+
+      .toast-dark {
+        background-color: #13131b !important;
+        color: #f8f9fa !important;
+        border-radius: 0.25rem;
+        box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+      }
+
+      .toast-dark.success {
+        border: 1px solid rgba(74,222,128,0.4) !important;
+      }
+
+      .toast-dark.error {
+        border: 1px solid rgba(248,113,113,0.4) !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
