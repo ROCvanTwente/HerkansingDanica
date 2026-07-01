@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import LoginScreen from './LoginScreen';
 import {
   AlertCircleIcon,
   BookOpenIcon,
@@ -56,16 +57,15 @@ function App() {
   const [managementSearch, setManagementSearch] = useState('');
   const [managementDate, setManagementDate] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [activeAuthTab, setActiveAuthTab] = useState('student');
   const [authError, setAuthError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [pendingPlace, setPendingPlace] = useState(null);
   const [confirmCancelId, setConfirmCancelId] = useState(null);
+  const [newPlace, setNewPlace] = useState({ code: '', type: '', hasMonitor: false });
+  const [placeMessage, setPlaceMessage] = useState({ type: '', text: '' });
   const [formData, setFormData] = useState({
     name: '',
     studentNumber: '',
@@ -150,27 +150,41 @@ function App() {
     setActiveTab('reserve');
   };
 
-  const handleLoginSubmit = event => {
-    event.preventDefault();
-    const credentials = activeAuthTab === 'student'
-      ? { username: 'S204812', password: 'student123', role: 'student', id: 1, name: 'Emma de Vries', studentNumber: 'S204812' }
-      : { username: 'admin', password: 'admin123', role: 'administrator', id: 99, name: 'Saskia van Dalen', studentNumber: 'A001' };
+  const handleLoginSubmit = async ({ studentNumber, password }) => {
+    setAuthLoading(true);
+    setAuthError('');
 
-    if (username === credentials.username && password === credentials.password) {
-      setCurrentUser(credentials);
+    try {
+      const response = await fetch('http://localhost:5289/api/Auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ studentNumber, password })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Inloggen mislukt.');
+      }
+
+      const normalizedUser = {
+        id: data.user.id,
+        name: data.user.name,
+        studentNumber: data.user.studentNumber,
+        role: data.role.toLowerCase() === 'admin' ? 'administrator' : 'student'
+      };
+
+      setCurrentUser(normalizedUser);
       setIsAuthenticated(true);
       setShowAuthModal(false);
-      setAuthError('');
-      setShowPassword(false);
-      setUsername('');
-      setPassword('');
+      setAuthLoading(false);
       if (pendingPlace) {
         setSelectedPlace(pendingPlace);
         setActiveTab('reserve');
         setPendingPlace(null);
       }
-    } else {
-      setAuthError('Deze referenties komen niet overeen met een demo-account.');
+    } catch (error) {
+      setAuthLoading(false);
+      setAuthError(error.message || 'Kan niet inloggen.');
     }
   };
 
@@ -221,14 +235,61 @@ function App() {
     }
   };
 
-  const handleCancelClick = reservationId => {
+  const handleCancelClick = async reservationId => {
     if (confirmCancelId === reservationId) {
-      setReservations(prev => prev.filter(reservation => reservation.id !== reservationId));
+      try {
+        const response = await fetch(`http://localhost:5289/api/Reservations/${reservationId}`, { method: 'DELETE' });
+        if (response.ok || response.status === 204) {
+          setReservations(prev => prev.filter(reservation => reservation.id !== reservationId));
+        }
+      } catch (error) {
+        console.error('Delete reservation failed', error);
+      }
       setConfirmCancelId(null);
       return;
     }
     setConfirmCancelId(reservationId);
   };
+
+  const handleCreatePlace = async event => {
+    event.preventDefault();
+    setPlaceMessage({ type: '', text: '' });
+
+    try {
+      const response = await fetch('http://localhost:5289/api/StudyPlaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(newPlace)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Plek kon niet worden aangemaakt.');
+      }
+
+      const createdPlace = await response.json();
+      setPlaces(prev => [...prev, createdPlace]);
+      setNewPlace({ code: '', type: '', hasMonitor: false });
+      setPlaceMessage({ type: 'success', text: 'Studieplek toegevoegd.' });
+    } catch (error) {
+      setPlaceMessage({ type: 'error', text: error.message || 'Kon studieplek niet toevoegen.' });
+    }
+  };
+
+  const handleDeletePlace = async placeId => {
+    try {
+      const response = await fetch(`http://localhost:5289/api/StudyPlaces/${placeId}`, { method: 'DELETE' });
+      if (response.ok || response.status === 204) {
+        setPlaces(prev => prev.filter(place => place.id !== placeId));
+      }
+    } catch (error) {
+      console.error('Delete place failed', error);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return <LoginScreen onSubmit={handleLoginSubmit} authError={authError} authLoading={authLoading} />;
+  }
 
   return (
     <div className="app-shell">
@@ -327,6 +388,26 @@ function App() {
               <div className="panel-heading">
                 <span>Overzicht studieplekken</span>
               </div>
+              {currentUser.role === 'administrator' ? (
+                <div className="admin-panel-block">
+                  <form className="admin-form" onSubmit={handleCreatePlace}>
+                    <div className="field-group">
+                      <label className="field-label">Plekcode</label>
+                      <input className="dark-input" value={newPlace.code} onChange={event => setNewPlace(prev => ({ ...prev, code: event.target.value }))} placeholder="S204" />
+                    </div>
+                    <div className="field-group">
+                      <label className="field-label">Type</label>
+                      <input className="dark-input" value={newPlace.type} onChange={event => setNewPlace(prev => ({ ...prev, type: event.target.value }))} placeholder="Computerplek" />
+                    </div>
+                    <label className="checkbox-row">
+                      <input type="checkbox" checked={newPlace.hasMonitor} onChange={event => setNewPlace(prev => ({ ...prev, hasMonitor: event.target.checked }))} />
+                      <span>Met monitor</span>
+                    </label>
+                    <button className="submit-btn small" type="submit">Plek toevoegen</button>
+                  </form>
+                  {placeMessage.text ? <div className={`form-message ${placeMessage.type === 'error' ? 'error' : 'success'}`}>{placeMessage.text}</div> : null}
+                </div>
+              ) : null}
               {loading ? (
                 <div className="empty-state">Gegevens laden...</div>
               ) : (
@@ -360,9 +441,14 @@ function App() {
                               </span>
                             </td>
                             <td>
-                              <button className="text-link" onClick={() => handleReserveClick(place)}>
-                                Reserveer →
-                              </button>
+                              <div className="table-actions">
+                                <button className="text-link" onClick={() => handleReserveClick(place)}>
+                                  Reserveer →
+                                </button>
+                                {currentUser.role === 'administrator' ? (
+                                  <button className="cancel-btn small" onClick={() => handleDeletePlace(place.id)}>Verwijderen</button>
+                                ) : null}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -506,7 +592,9 @@ function App() {
                                 <button className="cancel-deny" onClick={() => setConfirmCancelId(null)}>Nee</button>
                               </div>
                             ) : (
-                              <button className="cancel-btn" onClick={() => handleCancelClick(reservation.id)}>Annuleren</button>
+                              <button className="cancel-btn" onClick={() => handleCancelClick(reservation.id)}>
+                                {currentUser.role === 'administrator' ? 'Annuleren' : 'Verwijder'}
+                              </button>
                             )}
                           </div>
                         ))}
@@ -523,33 +611,7 @@ function App() {
       {showAuthModal ? (
         <div className="modal-backdrop" onClick={() => setShowAuthModal(false)}>
           <div className="auth-modal" onClick={event => event.stopPropagation()}>
-            <div className="auth-tabs">
-              <button className={`auth-tab ${activeAuthTab === 'student' ? 'active' : ''}`} onClick={() => { setActiveAuthTab('student'); setAuthError(''); }}>
-                <GraduationCapIcon className="icon" /> Student
-              </button>
-              <button className={`auth-tab ${activeAuthTab === 'admin' ? 'active' : ''}`} onClick={() => { setActiveAuthTab('admin'); setAuthError(''); }}>
-                <ShieldCheckIcon className="icon" /> Beheerder
-              </button>
-            </div>
-            <form onSubmit={handleLoginSubmit} className="auth-form">
-              <label className="field-group">
-                <span className="field-label">{activeAuthTab === 'student' ? 'Studentnummer' : 'Gebruikersnaam'}</span>
-                <input type="text" className="dark-input" value={username} onChange={event => setUsername(event.target.value)} placeholder={activeAuthTab === 'student' ? 'S204812' : 'admin'} />
-              </label>
-              <label className="field-group">
-                <span className="field-label">Wachtwoord</span>
-                <div className="password-row">
-                  <input type={showPassword ? 'text' : 'password'} className="dark-input" value={password} onChange={event => setPassword(event.target.value)} placeholder="••••••••" />
-                  <button type="button" className="pill-btn tiny" onClick={() => setShowPassword(prev => !prev)}>{showPassword ? 'Verborgen' : 'Toon'}</button>
-                </div>
-              </label>
-              {authError ? <div className="form-message error"><AlertCircleIcon className="icon" /><span>{authError}</span></div> : null}
-              <div className="demo-box">
-                <span className="field-label">Demo hint</span>
-                <div className="mono">{activeAuthTab === 'student' ? 'S204812 / student123' : 'admin / admin123'}</div>
-              </div>
-              <button className="submit-btn" type="submit">Inloggen <LogInIcon className="icon" /></button>
-            </form>
+            <LoginScreen onSubmit={handleLoginSubmit} authError={authError} authLoading={authLoading} />
           </div>
         </div>
       ) : null}

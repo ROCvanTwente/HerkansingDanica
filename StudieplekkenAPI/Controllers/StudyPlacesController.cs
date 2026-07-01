@@ -30,10 +30,31 @@ namespace StudieplekkenAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<StudyPlace>> PostStudyPlace(StudyPlace studyPlace)
         {
+            if (string.IsNullOrWhiteSpace(studyPlace.Code) || string.IsNullOrWhiteSpace(studyPlace.Type))
+            {
+                return BadRequest("Code en type zijn verplicht.");
+            }
+
             _context.StudyPlaces.Add(studyPlace);
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetStudyPlaces), new { id = studyPlace.Id }, studyPlace);
+        }
+
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> DeleteStudyPlace(int id)
+        {
+            var studyPlace = await _context.StudyPlaces.FindAsync(id);
+
+            if (studyPlace is null)
+            {
+                return NotFound(new { message = "De studieplek is niet gevonden." });
+            }
+
+            _context.StudyPlaces.Remove(studyPlace);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
     }
 }

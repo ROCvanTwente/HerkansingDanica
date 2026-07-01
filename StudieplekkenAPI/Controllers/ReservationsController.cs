@@ -68,6 +68,22 @@ public class ReservationsController : ControllerBase
 
         return CreatedAtAction(nameof(CreateReservation), new { id = reservation.Id }, reservation);
     }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteReservation(int id)
+    {
+        var reservation = await _context.Reservations.FindAsync(id);
+
+        if (reservation is null)
+        {
+            return NotFound(new { message = "De reservering is niet gevonden." });
+        }
+
+        _context.Reservations.Remove(reservation);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
 }
 
 public class CreateReservationRequest
