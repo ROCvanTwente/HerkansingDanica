@@ -12,36 +12,63 @@ import {
   LogInIcon,
   LogOutIcon,
   MonitorIcon,
-  SearchIcon,
   ShieldCheckIcon
 } from './icons';
 
 const tabs = [
-  { id: 'overview', label: 'Overzicht Studieplekken', icon: LayoutGridIcon },
-  { id: 'reserve', label: 'Reservering Maken', icon: CalendarDaysIcon },
-  { id: 'manage', label: 'Beheren & Annuleren', icon: ClipboardListIcon }
+  { id: 'overview', label: 'Beschikbaarheid', icon: LayoutGridIcon },
+  { id: 'my-reservations', label: 'Mijn reserveringen', icon: CalendarDaysIcon },
+  { id: 'admin', label: 'Beheer', icon: ClipboardListIcon }
 ];
 
-const typeOptions = ['Alle', 'Stilteplek', 'Groepsruimte', 'Computerplek'];
+const typeOptions = ['Mediatheek'];
 
-const studentDirectory = {
-  1: { name: 'Emma de Vries', studentNumber: 'S204812' },
-  2: { name: 'Lars Peters', studentNumber: 'S198321' },
-  3: { name: 'Nina Schouten', studentNumber: 'S215609' }
+// Inline stijlen voor de pop-up om te zorgen dat hij ALTIJD gecentreerd over het scherm komt
+const modalStyles = {
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    backdropFilter: 'blur(4px)',
+    padding: '1rem'
+  },
+  content: {
+    width: '100%',
+    maxWidth: '500px',
+    background: '#1e1e2f',
+    borderRadius: '12px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+    padding: '2rem',
+    border: '1px solid #2d2d3d'
+  }
 };
 
-function formatDateLabel(dateValue) {
-  if (!dateValue) return 'Selecteer een datum';
-  const date = new Date(`${dateValue}T00:00:00`);
-  return date.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+function isTimeOverlapping(startTime, endTime, candidateStart, candidateEnd) {
+  return startTime < candidateEnd && endTime > candidateStart;
 }
 
-function getPlaceStatus(place, date, reservations) {
-  if (!date) return 'Vrij';
-  const isBooked = reservations.some(reservation =>
-    reservation.studyPlaceId === place.id && reservation.date === date &&
-    reservation.startTime < reservation.endTime
-  );
+function getPlaceStatus(place, date, time, reservations) {
+  if (!date || !time) return 'Vrij';
+  const [hours, minutes] = time.split(':').map(Number);
+  const selectedStart = hours * 60 + minutes;
+  const selectedEnd = selectedStart + 60;
+
+  const isBooked = reservations.some(reservation => {
+    if (reservation.studyPlaceId !== place.id || reservation.date !== date) return false;
+    const [startHours, startMinutes] = reservation.startTime.slice(0, 5).split(':').map(Number);
+    const [endHours, endMinutes] = reservation.endTime.slice(0, 5).split(':').map(Number);
+    const reservationStart = startHours * 60 + startMinutes;
+    const reservationEnd = endHours * 60 + endMinutes;
+    return isTimeOverlapping(reservationStart, reservationEnd, selectedStart, selectedEnd);
+  });
+
   return isBooked ? 'Bezet' : 'Vrij';
 }
 
@@ -51,137 +78,112 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedPlace, setSelectedPlace] = useState(null);
-  const [overviewDate, setOverviewDate] = useState(new Date().toISOString().slice(0, 10));
-  const [selectedType, setSelectedType] = useState('Alle');
+  
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedTime, setSelectedTime] = useState(new Date().toTimeString().slice(0, 5));
+  
+  const [selectedType, setSelectedType] = useState('Mediatheek');
   const [onlyWithMonitor, setOnlyWithMonitor] = useState(false);
-  const [managementSearch, setManagementSearch] = useState('');
-  const [managementDate, setManagementDate] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(window.localStorage.getItem('study-session'));
+  });
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = window.localStorage.getItem('study-session');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [pendingPlace, setPendingPlace] = useState(null);
-  const [confirmCancelId, setConfirmCancelId] = useState(null);
-  const [newPlace, setNewPlace] = useState({ code: '', type: '', hasMonitor: false });
+  const [newPlace, setNewPlace] = useState({ code: '', type: 'Mediatheek', hasMonitor: false });
   const [placeMessage, setPlaceMessage] = useState({ type: '', text: '' });
+  
   const [formData, setFormData] = useState({
-    name: '',
-    studentNumber: '',
     date: new Date().toISOString().slice(0, 10),
-    startTime: '09:00',
-    endTime: '10:00',
-    studyPlaceId: ''
+    startTime: new Date().toTimeString().slice(0, 5),
+    endTime: '23:59'
   });
   const [formMessage, setFormMessage] = useState({ type: '', text: '' });
 
+  const loadData = async () => {
+    try {
+      const [placesResponse, reservationsResponse] = await Promise.all([
+        fetch('http://localhost:5289/api/StudyPlaces'),
+        fetch('http://localhost:5289/api/Reservations')
+      ]);
+      const placesData = await placesResponse.json();
+      const reservationsData = await reservationsResponse.json();
+      setPlaces(placesData);
+      setReservations(reservationsData);
+      setLoading(false);
+    } catch (error) {
+      console.error('Kon data niet laden.', error);
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    Promise.all([
-      fetch('http://localhost:5289/api/StudyPlaces').then(res => res.json()),
-      fetch('http://localhost:5289/api/Reservations').then(res => res.json())
-    ])
-      .then(([placesData, reservationsData]) => {
-        const normalizedReservations = reservationsData.map(reservation => ({
-          ...reservation,
-          studentName: studentDirectory[reservation.studentId]?.name ?? 'Gast Student',
-          studentNumber: studentDirectory[reservation.studentId]?.studentNumber ?? 'S000000'
-        }));
-        setPlaces(placesData);
-        setReservations(normalizedReservations);
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error('Kon data niet laden.', error);
-        setLoading(false);
-      });
+    loadData();
   }, []);
 
   useEffect(() => {
-    if (selectedPlace) {
-      setFormData(prev => ({ ...prev, studyPlaceId: String(selectedPlace.id) }));
+    if (activeTab === 'admin') {
+      loadData();
     }
-  }, [selectedPlace]);
+  }, [activeTab]);
+
+  const isAdmin = currentUser && (currentUser.role === 'administrator' || currentUser.role === 'admin');
 
   const filteredPlaces = useMemo(() => {
     return places.filter(place => {
-      const matchesType = selectedType === 'Alle' || place.type === selectedType;
+      const matchesType = selectedType === 'Alle' || place.type === selectedType || place.type === 'Mediatheek';
       const matchesMonitor = !onlyWithMonitor || place.hasMonitor;
       return matchesType && matchesMonitor;
     });
   }, [places, selectedType, onlyWithMonitor]);
 
-  const overviewCounts = useMemo(() => {
-    const occupied = filteredPlaces.filter(place => getPlaceStatus(place, overviewDate, reservations) === 'Bezet').length;
-    return { occupied, free: filteredPlaces.length - occupied };
-  }, [filteredPlaces, overviewDate, reservations]);
-
-  const visibleReservations = useMemo(() => {
-    const search = managementSearch.trim().toLowerCase();
-    return reservations.filter(reservation => {
-      const matchesDate = !managementDate || reservation.date === managementDate;
-      const matchesSearch = !search || [
-        reservation.studentName,
-        reservation.studentNumber,
-        String(reservation.studyPlaceId)
-      ].some(value => value.toLowerCase().includes(search));
-      const matchesUser = !currentUser || currentUser.role === 'administrator' || reservation.studentId === currentUser.id;
-      return matchesDate && matchesSearch && matchesUser;
-    });
-  }, [reservations, managementDate, managementSearch, currentUser]);
-
-  const groupedReservations = useMemo(() => {
-    return visibleReservations.reduce((groups, reservation) => {
-      const dateKey = reservation.date;
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push(reservation);
-      return groups;
-    }, {});
-  }, [visibleReservations]);
-
   const handleReserveClick = place => {
     setSelectedPlace(place);
-    setPendingPlace(place);
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-      setAuthError('');
-      return;
-    }
-    setActiveTab('reserve');
+    setFormMessage({ type: '', text: '' });
+    
+    const [hours, minutes] = selectedTime.split(':').map(Number);
+    const endHours = Math.min(hours + 1, 23);
+    const endTimeString = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+    setFormData({
+      date: selectedDate,
+      startTime: selectedTime,
+      endTime: endTimeString
+    });
   };
 
   const handleLoginSubmit = async ({ studentNumber, password }) => {
     setAuthLoading(true);
     setAuthError('');
-
     try {
       const response = await fetch('http://localhost:5289/api/Auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ studentNumber, password })
       });
-
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message || 'Inloggen mislukt.');
       }
-
       const normalizedUser = {
         id: data.user.id,
         name: data.user.name,
         studentNumber: data.user.studentNumber,
         role: data.role.toLowerCase() === 'admin' ? 'administrator' : 'student'
       };
-
+      window.localStorage.setItem('study-session', JSON.stringify(normalizedUser));
       setCurrentUser(normalizedUser);
       setIsAuthenticated(true);
       setShowAuthModal(false);
       setAuthLoading(false);
-      if (pendingPlace) {
-        setSelectedPlace(pendingPlace);
-        setActiveTab('reserve');
-        setPendingPlace(null);
-      }
+      await loadData();
     } catch (error) {
       setAuthLoading(false);
       setAuthError(error.message || 'Kan niet inloggen.');
@@ -189,6 +191,7 @@ function App() {
   };
 
   const handleLogout = () => {
+    window.localStorage.removeItem('study-session');
     setIsAuthenticated(false);
     setCurrentUser(null);
     setProfileMenuOpen(false);
@@ -197,13 +200,29 @@ function App() {
   const handleReservationSubmit = async event => {
     event.preventDefault();
     setFormMessage({ type: '', text: '' });
+    if (!selectedPlace) {
+      setFormMessage({ type: 'error', text: 'Selecteer eerst een studieplek.' });
+      return;
+    }
+
+    const vandaagString = new Date().toISOString().slice(0, 10);
+    if (formData.date === vandaagString) {
+      const nu = new Date();
+      const huidigeTijdString = nu.toTimeString().slice(0, 5);
+      
+      if (formData.startTime < huidigeTijdString) {
+        setFormMessage({ type: 'error', text: 'De gekozen starttijd is vandaag al voorbij.' });
+        return;
+      }
+    }
 
     const reservationData = {
-      studentId: currentUser?.role === 'administrator' ? 99 : currentUser?.id ?? 1,
-      studyPlaceId: Number(formData.studyPlaceId),
+      studyPlaceId: selectedPlace.id,
+      studentName: currentUser.name,
+      studentNumber: currentUser.studentNumber,
       date: formData.date,
-      startTime: formData.startTime.length === 5 ? `${formData.startTime}:00` : formData.startTime,
-      endTime: formData.endTime.length === 5 ? `${formData.endTime}:00` : formData.endTime
+      startTime: formData.startTime,
+      endTime: formData.endTime
     };
 
     try {
@@ -212,64 +231,44 @@ function App() {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(reservationData)
       });
-
-      if (response.ok) {
-        const createdReservation = {
-          id: Date.now(),
-          ...reservationData,
-          studentName: currentUser?.name ?? 'Emma de Vries',
-          studentNumber: currentUser?.studentNumber ?? 'S204812'
-        };
-        setReservations(prev => [createdReservation, ...prev]);
-        setFormMessage({ type: 'success', text: 'Reservering bevestigd. Dubbele reserveringen worden automatisch geweigerd.' });
-        setFormData(prev => ({ ...prev, studyPlaceId: '', name: '', studentNumber: '', date: prev.date, startTime: '09:00', endTime: '10:00' }));
-        setSelectedPlace(null);
-        setActiveTab('manage');
-      } else {
-        const errorText = await response.text();
-        setFormMessage({ type: 'error', text: errorText || 'Reservering geweigerd.' });
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(text || 'Reservering geweigerd.');
       }
+      await loadData();
+      setSelectedPlace(null);
+      setActiveTab('my-reservations');
     } catch (error) {
-      console.error('Reservation submit failed', error);
-      setFormMessage({ type: 'error', text: 'Kan geen verbinding maken met de backend API.' });
+      setFormMessage({ type: 'error', text: error.message || 'Kon reservering niet maken.' });
     }
   };
 
-  const handleCancelClick = async reservationId => {
-    if (confirmCancelId === reservationId) {
-      try {
-        const response = await fetch(`http://localhost:5289/api/Reservations/${reservationId}`, { method: 'DELETE' });
-        if (response.ok || response.status === 204) {
-          setReservations(prev => prev.filter(reservation => reservation.id !== reservationId));
-        }
-      } catch (error) {
-        console.error('Delete reservation failed', error);
+  const handleCancelReservation = async reservationId => {
+    try {
+      const response = await fetch(`http://localhost:5289/api/Reservations/${reservationId}`, { method: 'DELETE' });
+      if (response.ok || response.status === 204) {
+        await loadData();
       }
-      setConfirmCancelId(null);
-      return;
+    } catch (error) {
+      console.error('Annuleren mislukt', error);
     }
-    setConfirmCancelId(reservationId);
   };
 
   const handleCreatePlace = async event => {
     event.preventDefault();
     setPlaceMessage({ type: '', text: '' });
-
     try {
       const response = await fetch('http://localhost:5289/api/StudyPlaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(newPlace)
+        body: JSON.stringify({ code: newPlace.code, type: newPlace.type, hasMonitor: newPlace.hasMonitor })
       });
-
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Plek kon niet worden aangemaakt.');
+        const text = await response.text();
+        throw new Error(text || 'Plek kon niet worden aangemaakt.');
       }
-
-      const createdPlace = await response.json();
-      setPlaces(prev => [...prev, createdPlace]);
-      setNewPlace({ code: '', type: '', hasMonitor: false });
+      await loadData();
+      setNewPlace({ code: '', type: 'Mediatheek', hasMonitor: false });
       setPlaceMessage({ type: 'success', text: 'Studieplek toegevoegd.' });
     } catch (error) {
       setPlaceMessage({ type: 'error', text: error.message || 'Kon studieplek niet toevoegen.' });
@@ -280,10 +279,10 @@ function App() {
     try {
       const response = await fetch(`http://localhost:5289/api/StudyPlaces/${placeId}`, { method: 'DELETE' });
       if (response.ok || response.status === 204) {
-        setPlaces(prev => prev.filter(place => place.id !== placeId));
+        await loadData();
       }
     } catch (error) {
-      console.error('Delete place failed', error);
+      console.error('Verwijderen mislukt', error);
     }
   };
 
@@ -304,37 +303,30 @@ function App() {
         <div className="topbar-actions">
           <span className="status-pill"><span className="status-dot" /> Online</span>
           <div className="profile-chip-wrap">
-            {isAuthenticated ? (
-              <button className="profile-chip is-auth" onClick={() => setProfileMenuOpen(prev => !prev)}>
-                <div className="avatar-badge">
-                  {currentUser.role === 'administrator' ? <ShieldCheckIcon className="icon" /> : <GraduationCapIcon className="icon" />}
-                </div>
-                <div className="profile-meta">
-                  <span className="profile-name">{currentUser.name.split(' ')[0]}</span>
-                  <span className="profile-role">{currentUser.role === 'administrator' ? 'Beheerder' : 'Student'}</span>
-                </div>
-              </button>
-            ) : (
-              <button className="profile-chip" onClick={() => { setShowAuthModal(true); setAuthError(''); }}>
-                <LogInIcon className="icon" />
-                <span>Inloggen</span>
-              </button>
-            )}
-            {profileMenuOpen && isAuthenticated && (
+            <button className="profile-chip is-auth" onClick={() => setProfileMenuOpen(prev => !prev)}>
+              <div className="avatar-badge">
+                {isAdmin ? <ShieldCheckIcon className="icon" /> : <GraduationCapIcon className="icon" />}
+              </div>
+              <div className="profile-meta">
+                <span className="profile-name">{currentUser.name.split(' ')[0]}</span>
+                <span className="profile-role">{isAdmin ? 'Beheerder' : 'Student'}</span>
+              </div>
+            </button>
+            {profileMenuOpen && (
               <div className="profile-dropdown">
                 <div className="profile-dropdown-top">
                   <div className="avatar-badge large">
-                    {currentUser.role === 'administrator' ? <ShieldCheckIcon className="icon" /> : <GraduationCapIcon className="icon" />}
+                    {isAdmin ? <ShieldCheckIcon className="icon" /> : <GraduationCapIcon className="icon" />}
                   </div>
                   <div>
                     <div className="profile-name">{currentUser.name}</div>
                     <div className="profile-role mono">{currentUser.studentNumber}</div>
                   </div>
                 </div>
-                <div className="role-pill">{currentUser.role === 'administrator' ? 'Beheerder' : 'Student'}</div>
+                <div className="role-pill">{isAdmin ? 'Beheerder' : 'Student'}</div>
                 <ul className="permission-list">
                   <li><CheckIcon className="icon" /> Reserveringen bekijken</li>
-                  <li><CheckIcon className="icon" /> Beperkingen beheren</li>
+                  <li><CheckIcon className="icon" /> Studieplekken beheren</li>
                   <li><CheckIcon className="icon" /> Annuleringen uitvoeren</li>
                 </ul>
                 <button className="logout-btn" onClick={handleLogout}><LogOutIcon className="icon" /> Uitloggen</button>
@@ -346,13 +338,14 @@ function App() {
 
       <div className="tabbar">
         {tabs.map(tab => {
+          if (tab.id === 'admin' && !isAdmin) return null;
+          
           const Icon = tab.icon;
           const active = activeTab === tab.id;
           return (
             <button key={tab.id} className={`tab-pill ${active ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
               <Icon className="icon" />
               <span>{tab.label}</span>
-              {tab.id === 'overview' ? <span className="tab-badge">{filteredPlaces.length}</span> : null}
             </button>
           );
         })}
@@ -365,7 +358,11 @@ function App() {
               <div className="toolbar-row">
                 <label className="field-group compact">
                   <span className="field-label">Datum</span>
-                  <input type="date" value={overviewDate} onChange={event => setOverviewDate(event.target.value)} className="dark-input" />
+                  <input type="date" value={selectedDate} min={new Date().toISOString().slice(0, 10)} onChange={event => setSelectedDate(event.target.value)} className="dark-input" />
+                </label>
+                <label className="field-group compact">
+                  <span className="field-label">Tijd</span>
+                  <input type="time" value={selectedTime} onChange={event => setSelectedTime(event.target.value)} className="dark-input" />
                 </label>
                 <div className="pill-group">
                   {typeOptions.map(type => (
@@ -377,37 +374,11 @@ function App() {
                 <button className={`pill-btn ${onlyWithMonitor ? 'active' : ''}`} onClick={() => setOnlyWithMonitor(prev => !prev)}>
                   Alleen met monitor
                 </button>
-                <div className="count-group">
-                  <span className="count-pill gold">{overviewCounts.free} vrij</span>
-                  <span className="count-pill muted">{overviewCounts.occupied} bezet</span>
-                </div>
               </div>
             </div>
 
             <div className="panel-card">
-              <div className="panel-heading">
-                <span>Overzicht studieplekken</span>
-              </div>
-              {currentUser.role === 'administrator' ? (
-                <div className="admin-panel-block">
-                  <form className="admin-form" onSubmit={handleCreatePlace}>
-                    <div className="field-group">
-                      <label className="field-label">Plekcode</label>
-                      <input className="dark-input" value={newPlace.code} onChange={event => setNewPlace(prev => ({ ...prev, code: event.target.value }))} placeholder="S204" />
-                    </div>
-                    <div className="field-group">
-                      <label className="field-label">Type</label>
-                      <input className="dark-input" value={newPlace.type} onChange={event => setNewPlace(prev => ({ ...prev, type: event.target.value }))} placeholder="Computerplek" />
-                    </div>
-                    <label className="checkbox-row">
-                      <input type="checkbox" checked={newPlace.hasMonitor} onChange={event => setNewPlace(prev => ({ ...prev, hasMonitor: event.target.checked }))} />
-                      <span>Met monitor</span>
-                    </label>
-                    <button className="submit-btn small" type="submit">Plek toevoegen</button>
-                  </form>
-                  {placeMessage.text ? <div className={`form-message ${placeMessage.type === 'error' ? 'error' : 'success'}`}>{placeMessage.text}</div> : null}
-                </div>
-              ) : null}
+              <div className="panel-heading">Beschikbaarheid studieplekken</div>
               {loading ? (
                 <div className="empty-state">Gegevens laden...</div>
               ) : (
@@ -415,40 +386,29 @@ function App() {
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Plek</th>
+                        <th>Code</th>
                         <th>Type</th>
                         <th>Monitor</th>
-                        <th>Status op datum</th>
+                        <th>Status</th>
                         <th>Actie</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredPlaces.map(place => {
-                        const status = getPlaceStatus(place, overviewDate, reservations);
+                        const status = getPlaceStatus(place, selectedDate, selectedTime, reservations);
+                        const isBooked = status === 'Bezet';
                         return (
                           <tr key={place.id}>
                             <td className="mono-cell">{place.code}</td>
                             <td>{place.type}</td>
+                            <td>{place.hasMonitor ? 'Ja' : 'Nee'}</td>
+                            <td><span className={`status-pill inline ${isBooked ? 'red' : 'green'}`}>{status}</span></td>
                             <td>
-                              <span className={`status-pill inline ${place.hasMonitor ? 'green' : 'muted'}`}>
-                                <MonitorIcon className="icon" />
-                                {place.hasMonitor ? 'Monitor' : 'Geen'}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={`status-pill inline ${status === 'Vrij' ? 'green' : 'red'}`}>
-                                {status}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="table-actions">
+                              {!isBooked && (
                                 <button className="text-link" onClick={() => handleReserveClick(place)}>
                                   Reserveer →
                                 </button>
-                                {currentUser.role === 'administrator' ? (
-                                  <button className="cancel-btn small" onClick={() => handleDeletePlace(place.id)}>Verwijderen</button>
-                                ) : null}
-                              </div>
+                              )}
                             </td>
                           </tr>
                         );
@@ -458,147 +418,78 @@ function App() {
                 </div>
               )}
             </div>
+
+            {/* Pop-up met gegarandeerde inline CSS-stijlen */}
+            {selectedPlace && (
+              <div style={modalStyles.overlay} onClick={() => setSelectedPlace(null)}>
+                <div style={modalStyles.content} onClick={event => event.stopPropagation()}>
+                  <div className="panel-heading" style={{ margin: 0, paddingBottom: '1rem', borderBottom: '1px solid #2d2d3d' }}>
+                    Reservering maken voor {selectedPlace.code}
+                  </div>
+                  
+                  <form onSubmit={handleReservationSubmit} className="reservation-form" style={{ marginTop: '1.5rem' }}>
+                    <div className="field-group">
+                      <label className="field-label">Datum</label>
+                      <input 
+                        type="date" 
+                        className="dark-input" 
+                        value={formData.date} 
+                        min={new Date().toISOString().slice(0, 10)} 
+                        onChange={event => setFormData(prev => ({ ...prev, date: event.target.value }))} 
+                      />
+                    </div>
+                    
+                    <div className="time-row" style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }}>
+                      <div className="field-group" style={{ flex: 1 }}>
+                        <label className="field-label">Starttijd</label>
+                        <input type="time" className="dark-input" value={formData.startTime} onChange={event => setFormData(prev => ({ ...prev, startTime: event.target.value }))} />
+                      </div>
+                      <div className="field-group" style={{ flex: 1 }}>
+                        <label className="field-label">Eindtijd</label>
+                        <input type="time" className="dark-input" value={formData.endTime} onChange={event => setFormData(prev => ({ ...prev, endTime: event.target.value }))} />
+                      </div>
+                    </div>
+
+                    {formMessage.text && (
+                      <div className={`form-message ${formMessage.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: '1rem' }}>
+                        {formMessage.text}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                      <button className="submit-btn" type="submit" style={{ flex: 1 }}>
+                        Bevestigen
+                      </button>
+                      <button className="cancel-btn" type="button" onClick={() => setSelectedPlace(null)} style={{ padding: '0 1.5rem', background: '#2d2d3d' }}>
+                        Annuleren
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
-        {activeTab === 'reserve' && (
-          <section className="reservation-grid">
-            <div className="panel-card form-card">
-              <div className="form-header">
-                <div>
-                  <div className="panel-heading small">Reservering maken</div>
-                  <h2>{selectedPlace ? `Plek ${selectedPlace.code}` : 'Selecteer een plek rechts →'}</h2>
-                </div>
-                <div className={`selection-box ${selectedPlace ? 'selected' : ''}`}>
-                  {selectedPlace ? `Geselecteerd: ${selectedPlace.code}` : 'Nog geen plek gekozen'}
-                </div>
-              </div>
-
-              <form onSubmit={handleReservationSubmit} className="reservation-form">
-                <div className="field-group">
-                  <label className="field-label">Naam</label>
-                  <input type="text" className="dark-input" value={formData.name} onChange={event => setFormData(prev => ({ ...prev, name: event.target.value }))} placeholder="Bijv. Emma de Vries" />
-                </div>
-
-                <div className="field-group">
-                  <label className="field-label">Studentnummer</label>
-                  <input type="text" className="dark-input mono" value={formData.studentNumber} onChange={event => setFormData(prev => ({ ...prev, studentNumber: event.target.value }))} placeholder="S204812" />
-                </div>
-
-                <div className="field-group">
-                  <label className="field-label">Datum</label>
-                  <input type="date" className="dark-input" value={formData.date} onChange={event => setFormData(prev => ({ ...prev, date: event.target.value }))} />
-                </div>
-
-                <div className="time-row">
-                  <div className="field-group">
-                    <label className="field-label">Starttijd</label>
-                    <input type="time" className="dark-input" value={formData.startTime} onChange={event => setFormData(prev => ({ ...prev, startTime: event.target.value }))} />
-                  </div>
-                  <div className="field-group">
-                    <label className="field-label">Eindtijd</label>
-                    <input type="time" className="dark-input" value={formData.endTime} onChange={event => setFormData(prev => ({ ...prev, endTime: event.target.value }))} />
-                  </div>
-                </div>
-
-                <button className="submit-btn" type="submit">Reservering Bevestigen</button>
-                {formMessage.text ? (
-                  <div className={`form-message ${formMessage.type === 'error' ? 'error' : 'success'}`}>
-                    {formMessage.type === 'error' ? <AlertCircleIcon className="icon" /> : <CheckIcon className="icon" />}
-                    <span>{formMessage.text}</span>
-                  </div>
-                ) : null}
-                <p className="hint-text">Dubbele reserveringen worden automatisch geweigerd.</p>
-              </form>
-            </div>
-
-            <div className="panel-card place-picker-card">
-              <div className="panel-heading">Beschikbare plekken</div>
-              <div className="place-list">
-                {filteredPlaces.map(place => {
-                  const status = getPlaceStatus(place, formData.date, reservations);
-                  const isOccupied = status === 'Bezet';
-                  const isSelected = selectedPlace?.id === place.id;
-                  return (
-                    <button key={place.id} className={`place-card ${isSelected ? 'selected' : ''} ${isOccupied ? 'occupied' : ''}`} onClick={() => !isOccupied && setSelectedPlace(place)} disabled={isOccupied}>
-                      <div className="place-card-top">
-                        <span className="mono-cell">{place.code}</span>
-                        <span className={`status-pill inline ${isOccupied ? 'red' : isSelected ? 'gold' : 'green'}`}>
-                          {isOccupied ? 'Bezet' : isSelected ? '✓ Geselecteerd' : 'Beschikbaar'}
-                        </span>
-                      </div>
-                      <div className="place-card-meta">
-                        <span>{place.type}</span>
-                        {place.hasMonitor ? <MonitorIcon className="icon" /> : null}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {activeTab === 'manage' && (
+        {activeTab === 'my-reservations' && (
           <section className="panel-stack">
-            <div className="toolbar-card management-toolbar">
-              <label className="field-group compact flex-grow">
-                <span className="field-label">Zoeken</span>
-                <div className="search-input-wrap">
-                  <SearchIcon className="icon" />
-                  <input type="text" className="dark-input" value={managementSearch} onChange={event => setManagementSearch(event.target.value)} placeholder="Bijv. S204812 of Emma..." />
-                </div>
-              </label>
-              <label className="field-group compact">
-                <span className="field-label">Datum</span>
-                <input type="date" className="dark-input" value={managementDate} onChange={event => setManagementDate(event.target.value)} />
-              </label>
-              {managementDate ? <button className="pill-btn" onClick={() => setManagementDate('')}>Wis filter</button> : null}
-              <span className="count-pill gold">{visibleReservations.length} reserveringen</span>
-            </div>
-
             <div className="panel-card">
-              <div className="panel-heading">Beheer reserveringen</div>
-              {Object.entries(groupedReservations).length === 0 ? (
-                <div className="empty-state">Geen reserveringen gevonden.</div>
+              <div className="panel-heading">Mijn reserveringen</div>
+              {reservations.filter(reservation => reservation.studentNumber === currentUser.studentNumber).length === 0 ? (
+                <div className="empty-state">Je hebt nog geen reserveringen.</div>
               ) : (
-                <div className="reservation-groups">
-                  {Object.entries(groupedReservations).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-                    <div key={date} className="reservation-group">
-                      <div className="group-header">
-                        <div className="group-title">
-                          <CalendarDaysIcon className="icon" />
-                          <span>{formatDateLabel(date)}</span>
+                <div className="reservation-list">
+                  {reservations.filter(reservation => reservation.studentNumber === currentUser.studentNumber).map(reservation => (
+                    <div key={reservation.id} className="reservation-card">
+                      <div className="reservation-badge">{places.find(place => place.id === reservation.studyPlaceId)?.code ?? reservation.studyPlaceId}</div>
+                      <div className="reservation-main">
+                        <div className="reservation-name">{reservation.studentName}</div>
+                        <div className="reservation-meta-row">
+                          <span className="meta-chip">{reservation.date}</span>
+                          <span className="meta-chip clock"><ClockIcon className="icon" />{reservation.startTime.slice(0, 5)} – {reservation.endTime.slice(0, 5)}</span>
                         </div>
-                        <div className="group-rule" />
                       </div>
-                      <div className="reservation-list">
-                        {items.map(reservation => (
-                          <div key={reservation.id} className={`reservation-card ${confirmCancelId === reservation.id ? 'confirming' : ''}`}>
-                            <div className="reservation-badge">{reservation.studyPlaceId}</div>
-                            <div className="reservation-main">
-                              <div className="reservation-person">
-                                <div className="reservation-name">{reservation.studentName}</div>
-                                <div className="reservation-meta-row">
-                                  <span className="meta-chip mono">{reservation.studentNumber}</span>
-                                  <span className="meta-chip">{places.find(place => place.id === reservation.studyPlaceId)?.type ?? 'Studieplek'}</span>
-                                  <span className="meta-chip clock"><ClockIcon className="icon" />{reservation.startTime.slice(0, 5)} – {reservation.endTime.slice(0, 5)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            {confirmCancelId === reservation.id ? (
-                              <div className="cancel-actions">
-                                <button className="cancel-confirm" onClick={() => handleCancelClick(reservation.id)}>Ja, annuleer</button>
-                                <button className="cancel-deny" onClick={() => setConfirmCancelId(null)}>Nee</button>
-                              </div>
-                            ) : (
-                              <button className="cancel-btn" onClick={() => handleCancelClick(reservation.id)}>
-                                {currentUser.role === 'administrator' ? 'Annuleren' : 'Verwijder'}
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                      <button className="cancel-btn" onClick={() => handleCancelReservation(reservation.id)}>Annuleer</button>
                     </div>
                   ))}
                 </div>
@@ -606,15 +497,64 @@ function App() {
             </div>
           </section>
         )}
-      </main>
 
-      {showAuthModal ? (
-        <div className="modal-backdrop" onClick={() => setShowAuthModal(false)}>
-          <div className="auth-modal" onClick={event => event.stopPropagation()}>
-            <LoginScreen onSubmit={handleLoginSubmit} authError={authError} authLoading={authLoading} />
-          </div>
-        </div>
-      ) : null}
+        {activeTab === 'admin' && isAdmin && (
+          <section className="panel-stack">
+            <div className="panel-card">
+              <div className="panel-heading">Alle reserveringen</div>
+              <div className="reservation-list">
+                {reservations.map(reservation => (
+                  <div key={reservation.id} className="reservation-card">
+                    <div className="reservation-badge">{places.find(place => place.id === reservation.studyPlaceId)?.code ?? reservation.studyPlaceId}</div>
+                    <div className="reservation-main">
+                      <div className="reservation-name">{reservation.studentName}</div>
+                      <div className="reservation-meta-row">
+                        <span className="meta-chip mono">{reservation.studentNumber}</span>
+                        <span className="meta-chip">{reservation.date}</span>
+                        <span className="meta-chip clock"><ClockIcon className="icon" />{reservation.startTime.slice(0, 5)} – {reservation.endTime.slice(0, 5)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="panel-card">
+              <div className="panel-heading">Studieplekken beheren</div>
+              <form className="admin-form" onSubmit={handleCreatePlace}>
+                <div className="field-group">
+                  <label className="field-label">Code</label>
+                  <input className="dark-input" value={newPlace.code} onChange={event => setNewPlace(prev => ({ ...prev, code: event.target.value }))} placeholder="Tafel 01" />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Type</label>
+                  <input className="dark-input" value="Mediatheek" readOnly />
+                </div>
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={newPlace.hasMonitor} onChange={event => setNewPlace(prev => ({ ...prev, hasMonitor: event.target.checked }))} />
+                  <span>Met monitor</span>
+                </label>
+                <button className="submit-btn small" type="submit">Toevoegen</button>
+              </form>
+              {placeMessage.text ? <div className={`form-message ${placeMessage.type === 'error' ? 'error' : 'success'}`}>{placeMessage.text}</div> : null}
+              <div className="reservation-list">
+                {places.map(place => (
+                  <div key={place.id} className="reservation-card">
+                    <div className="reservation-badge">{place.code}</div>
+                    <div className="reservation-main">
+                      <div className="reservation-name">{place.type}</div>
+                      <div className="reservation-meta-row">
+                        <span className="meta-chip">{place.hasMonitor ? 'Monitor' : 'Geen monitor'}</span>
+                      </div>
+                    </div>
+                    <button className="cancel-btn" onClick={() => handleDeletePlace(place.id)}>Verwijderen</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+      </main>
     </div>
   );
 }

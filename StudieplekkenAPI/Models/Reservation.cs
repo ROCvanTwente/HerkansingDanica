@@ -9,10 +9,15 @@ public class Reservation
     public int Id { get; set; }
 
     [Required]
-    public int StudentId { get; set; }
+    public int StudyPlaceId { get; set; }
 
     [Required]
-    public int StudyPlaceId { get; set; }
+    [StringLength(100)]
+    public string StudentName { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(50)]
+    public string StudentNumber { get; set; } = string.Empty;
 
     [Required]
     [Column(TypeName = "date")]
@@ -25,9 +30,6 @@ public class Reservation
     [Required]
     [Column(TypeName = "time")]
     public TimeOnly EndTime { get; set; }
-
-    [ForeignKey(nameof(StudentId))]
-    public Student Student { get; set; } = null!;
 
     [ForeignKey(nameof(StudyPlaceId))]
     public StudyPlace StudyPlace { get; set; } = null!;

@@ -8,7 +8,7 @@ public class StudyPlace
     public int Id { get; set; }
 
     [Required]
-    [StringLength(20)]
+    [StringLength(50)]
     public string Code { get; set; } = string.Empty;
 
     [Required]

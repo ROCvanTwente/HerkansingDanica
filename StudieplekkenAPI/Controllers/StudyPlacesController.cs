@@ -16,8 +16,6 @@ namespace StudieplekkenAPI.Controllers
             _context = context;
         }
 
-        // GET: api/StudyPlaces
-        // Dit endpoint wordt door je React frontend aangeroepen om de tabel te vullen
         [HttpGet]
         public async Task<ActionResult<IEnumerable<StudyPlace>>> GetStudyPlaces()
         {
@@ -25,20 +23,51 @@ namespace StudieplekkenAPI.Controllers
             return Ok(places);
         }
 
-        // POST: api/StudyPlaces
-        // Hiermee kun je via Swagger handmatig studieplekken toevoegen
         [HttpPost]
-        public async Task<ActionResult<StudyPlace>> PostStudyPlace(StudyPlace studyPlace)
+        public async Task<ActionResult<StudyPlace>> PostStudyPlace(CreateStudyPlaceRequest request)
         {
-            if (string.IsNullOrWhiteSpace(studyPlace.Code) || string.IsNullOrWhiteSpace(studyPlace.Type))
+            if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Type))
             {
                 return BadRequest("Code en type zijn verplicht.");
             }
 
+            var studyPlace = new StudyPlace
+            {
+                Code = request.Code.Trim(),
+                Type = request.Type.Trim(),
+                HasMonitor = request.HasMonitor
+            };
+
             _context.StudyPlaces.Add(studyPlace);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetStudyPlaces), new { id = studyPlace.Id }, studyPlace);
+            // Direct het aangemaakte object succesvol terugsturen naar de frontend
+            return Ok(studyPlace);
+        }
+
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> PutStudyPlace(int id, CreateStudyPlaceRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Type))
+            {
+                return BadRequest("Code en type zijn verplicht.");
+            }
+
+            var studyPlace = await _context.StudyPlaces.FindAsync(id);
+
+            if (studyPlace is null)
+            {
+                return NotFound(new { message = "De studieplek is niet gevonden." });
+            }
+
+            // Gegevens van de bestaande plek overschrijven met de nieuwe waarden
+            studyPlace.Code = request.Code.Trim();
+            studyPlace.Type = request.Type.Trim();
+            studyPlace.HasMonitor = request.HasMonitor;
+
+            await _context.SaveChangesAsync();
+
+            return NoContent(); // HTTP 204: Succesvol bijgewerkt zonder extra data terug te sturen
         }
 
         [HttpDelete("{id:int}")]
@@ -56,5 +85,12 @@ namespace StudieplekkenAPI.Controllers
 
             return NoContent();
         }
+    }
+
+    public class CreateStudyPlaceRequest
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public bool HasMonitor { get; set; }
     }
 }

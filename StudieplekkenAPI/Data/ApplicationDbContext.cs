@@ -17,12 +17,6 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Reservation>()
-            .HasOne(r => r.Student)
-            .WithMany(s => s.Reservations)
-            .HasForeignKey(r => r.StudentId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<Reservation>()
             .HasOne(r => r.StudyPlace)
             .WithMany(p => p.Reservations)
             .HasForeignKey(r => r.StudyPlaceId)
