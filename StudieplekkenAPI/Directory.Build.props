@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <UseAppHost>false</UseAppHost>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <BaseOutputPath>$(UserProfile)\AppData\Local\Temp\StudieplekkenAPI\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(UserProfile)\AppData\Local\Temp\StudieplekkenAPI\obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

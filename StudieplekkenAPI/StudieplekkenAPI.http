@@ -1,0 +1,6 @@
+@StudieplekkenAPI_HostAddress = http://localhost:5289
+
+GET {{StudieplekkenAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
