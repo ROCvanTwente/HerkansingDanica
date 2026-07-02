@@ -17,9 +17,6 @@
   }
 }
 
-/* ==========================================
-   NIEUW: CSS VOOR DE RESERVERINGS POP-UP 
-   ========================================== */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -45,7 +42,6 @@
   box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.5);
   padding: 2rem;
 }
-/* ========================================== */
 
 .hero {
   position: relative;

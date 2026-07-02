@@ -23,7 +23,6 @@ const tabs = [
 
 const typeOptions = ['Mediatheek'];
 
-// Inline stijlen voor de pop-up om te zorgen dat hij ALTIJD gecentreerd over het scherm komt
 const modalStyles = {
   overlay: {
     position: 'fixed',
