@@ -420,9 +420,9 @@ function App() {
 
             {/* Pop-up met gegarandeerde inline CSS-stijlen */}
             {selectedPlace && (
-              <div style={modalStyles.overlay} onClick={() => setSelectedPlace(null)}>
-                <div style={modalStyles.content} onClick={event => event.stopPropagation()}>
-                  <div className="panel-heading" style={{ margin: 0, paddingBottom: '1rem', borderBottom: '1px solid #2d2d3d' }}>
+              <div style={{ ...modalStyles.overlay, backgroundColor: 'rgba(255, 255, 255, 0.75)', backdropFilter: 'blur(4px)' }} onClick={() => setSelectedPlace(null)}>
+                <div style={{ ...modalStyles.content, backgroundColor: '#ffffff', color: '#1f1f2e', border: '1px solid rgba(0, 0, 0, 0.08)', boxShadow: '0 0.5rem 2rem rgba(0, 0, 0, 0.1)' }} onClick={event => event.stopPropagation()}>
+                  <div className="panel-heading" style={{ margin: 0, paddingBottom: '1rem', borderBottom: '1px solid #e1e1e8' }}>
                     Reservering maken voor {selectedPlace.code}
                   </div>
                   
@@ -435,31 +435,32 @@ function App() {
                         value={formData.date} 
                         min={new Date().toISOString().slice(0, 10)} 
                         onChange={event => setFormData(prev => ({ ...prev, date: event.target.value }))} 
+                        style={{ background: '#f4f4f7', border: '1px solid #e1e1e8', color: '#1f1f2e', padding: '8px', borderRadius: '4px', width: '100%' }}
                       />
                     </div>
                     
                     <div className="time-row" style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }}>
                       <div className="field-group" style={{ flex: 1 }}>
                         <label className="field-label">Starttijd</label>
-                        <input type="time" className="dark-input" value={formData.startTime} onChange={event => setFormData(prev => ({ ...prev, startTime: event.target.value }))} />
+                        <input type="time" className="dark-input" value={formData.startTime} onChange={event => setFormData(prev => ({ ...prev, startTime: event.target.value }))} style={{ background: '#f4f4f7', border: '1px solid #e1e1e8', color: '#1f1f2e', padding: '8px', borderRadius: '4px', width: '100%' }} />
                       </div>
                       <div className="field-group" style={{ flex: 1 }}>
                         <label className="field-label">Eindtijd</label>
-                        <input type="time" className="dark-input" value={formData.endTime} onChange={event => setFormData(prev => ({ ...prev, endTime: event.target.value }))} />
+                        <input type="time" className="dark-input" value={formData.endTime} onChange={event => setFormData(prev => ({ ...prev, endTime: event.target.value }))} style={{ background: '#f4f4f7', border: '1px solid #e1e1e8', color: '#1f1f2e', padding: '8px', borderRadius: '4px', width: '100%' }} />
                       </div>
                     </div>
 
                     {formMessage.text && (
-                      <div className={`form-message ${formMessage.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: '1rem' }}>
+                      <div className={`form-message ${formMessage.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: '1rem', color: formMessage.type === 'error' ? '#cc0000' : '#00aa66' }}>
                         {formMessage.text}
                       </div>
                     )}
 
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                      <button className="submit-btn" type="submit" style={{ flex: 1 }}>
+                      <button className="submit-btn" type="submit" style={{ flex: 1, background: 'var(--accent-bg)', color: 'var(--accent)', border: '2px solid transparent', padding: '10px', borderRadius: '5px' }}>
                         Bevestigen
                       </button>
-                      <button className="cancel-btn" type="button" onClick={() => setSelectedPlace(null)} style={{ padding: '0 1.5rem', background: '#2d2d3d' }}>
+                      <button className="cancel-btn" type="button" onClick={() => setSelectedPlace(null)} style={{ padding: '0 1.5rem', background: '#e1e1e8', color: '#1f1f2e', border: 'none', borderRadius: '5px' }}>
                         Annuleren
                       </button>
                     </div>

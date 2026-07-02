@@ -1,21 +1,25 @@
 :root {
-  color-scheme: dark;
-  font-family: 'Nunito Sans', sans-serif;
+  color-scheme: light;
+
+  font-family: "Nunito Sans", sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --page-bg: #0d0d12;
-  --card-bg: #16161f;
-  --navbar-bg: #0a0a0f;
-  --input-bg: #1e1e2a;
-  --text-primary: #e8e8f0;
-  --text-muted: #6b6b80;
-  --text-label: #9999b0;
-  --accent: #c8a96e;
-  --border-color: rgba(255,255,255,0.07);
+
+  --page-bg: #f8f9fa;
+  --card-bg: #ffffff;
+  --navbar-bg: #ffffff;
+  --input-bg: #ffffff;
+
+  --text-primary: #212529;
+  --text-muted: #6c757d;
+  --text-label: #6c757d;
+
+  --accent: #4582ec;
+  --border-color: #dee2e6;
 }
 
 * { box-sizing: border-box; }
@@ -44,8 +48,8 @@ button { cursor: pointer; }
 
 .app-shell {
   min-height: 100vh;
-  background: linear-gradient(180deg, #101018 0%, var(--page-bg) 100%);
-  color: var(--text-primary);
+  background: linear-gradient(180deg, #6d6db8 0%, var(--page-bg) 100%);
+
 }
 
 .topbar {
@@ -191,7 +195,9 @@ button { cursor: pointer; }
   flex: 1;
   border: 1px solid var(--border-color);
   background: rgba(255,255,255,0.03);
-  color: var(--text-muted);
+  color: #111111;
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 -2px 0 var(--accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -201,8 +207,8 @@ button { cursor: pointer; }
 }
 
 .tab-pill.active {
-  color: var(--accent);
-  border-color: rgba(200,169,110,0.4);
+  color: #111111;
+  border-color: rgba(255, 255, 255, 0.4);
   box-shadow: inset 0 -2px 0 var(--accent);
 }
 
@@ -268,7 +274,7 @@ button { cursor: pointer; }
 
 .pill-group { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .pill-btn {
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(192, 44, 44, 0.12);
   background: transparent;
   color: var(--text-muted);
   border-radius: 999px;
@@ -276,9 +282,9 @@ button { cursor: pointer; }
 }
 
 .pill-btn.active {
-  background: var(--accent);
+  background: #6d6db8;
   color: #171717;
-  border-color: var(--accent);
+  border-color: #b8b8f0;
 }
 
 .pill-btn:hover { border-color: rgba(200,169,110,0.35); color: var(--text-primary); }
@@ -303,6 +309,7 @@ button { cursor: pointer; }
 .data-table th,
 .data-table td {
   padding: 0.9rem 0.75rem;
+  color: #111111;
   text-align: left;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
