@@ -104,6 +104,7 @@ function App() {
     startTime: new Date().toTimeString().slice(0, 5),
     endTime: '23:59'
   });
+  
   const [formMessage, setFormMessage] = useState({ type: '', text: '' });
 
   const loadData = async () => {
@@ -311,6 +312,7 @@ function App() {
                 <span className="profile-role">{isAdmin ? 'Beheerder' : 'Student'}</span>
               </div>
             </button>
+
             {profileMenuOpen && (
               <div className="profile-dropdown">
                 <div className="profile-dropdown-top">
@@ -418,7 +420,6 @@ function App() {
               )}
             </div>
 
-            {/* Pop-up met gegarandeerde inline CSS-stijlen */}
             {selectedPlace && (
               <div style={{ ...modalStyles.overlay, backgroundColor: 'rgba(255, 255, 255, 0.75)', backdropFilter: 'blur(4px)' }} onClick={() => setSelectedPlace(null)}>
                 <div style={{ ...modalStyles.content, backgroundColor: '#ffffff', color: '#1f1f2e', border: '1px solid rgba(0, 0, 0, 0.08)', boxShadow: '0 0.5rem 2rem rgba(0, 0, 0, 0.1)' }} onClick={event => event.stopPropagation()}>
